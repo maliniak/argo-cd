@@ -1,0 +1,56 @@
+backendA:
+  replicaCount: 1
+  image:
+    repository: backend-a
+    tag: 0.1.0
+    pullPolicy: Always
+  service:
+    port: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+backendB:
+  replicaCount: 1
+  image:
+    repository: backend-b
+    tag: 0.1.0
+    pullPolicy: Always
+  service:
+    port: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: frontend
+    tag: 0.1.0
+    pullPolicy: Always
+  service:
+    port: 80
+    targetPort: 8000
+  publicApiBasePath: /api
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+ingress:
+  enabled: true
+  className: alb
+  scheme: internet-facing
+  targetType: ip
+  healthcheckPath: /health

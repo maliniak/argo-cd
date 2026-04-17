@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-a
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: backend-a
+    app.kubernetes.io/part-of: gitops-lab
+spec:
+  replicas: {{ .Values.backendA.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend-a
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend-a
+        app.kubernetes.io/part-of: gitops-lab
+    spec:
+      containers:
+        - name: backend-a
+          image: {{ printf "%s:%s" .Values.backendA.image.repository .Values.backendA.image.tag | quote }}
+          imagePullPolicy: {{ .Values.backendA.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: BACKEND_B_URL
+              value: {{ printf "http://backend-b.%s.svc.cluster.local:8000" .Release.Namespace | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+{{ toYaml .Values.backendA.resources | indent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-a
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: backend-a
+    app.kubernetes.io/part-of: gitops-lab
+spec:
+  selector:
+    app.kubernetes.io/name: backend-a
+  ports:
+    - name: http
+      port: {{ .Values.backendA.service.port }}
+      targetPort: 8000

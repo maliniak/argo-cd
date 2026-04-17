@@ -1,0 +1,191 @@
+name: lab-release
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - lab/apps/**
+      - .github/workflows/lab-release.yaml
+  push:
+    branches:
+      - main
+    paths:
+      - lab/apps/**
+      - .github/workflows/lab-release.yaml
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPOSITORY_PREFIX: gitops-lab
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed services
+        id: collect
+        run: |
+          set -euo pipefail
+
+          services=()
+
+          if [[ "${{ github.event_name }}" == 'workflow_dispatch' ]]; then
+            services=("backend-a" "backend-b" "frontend")
+          else
+            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+              base_ref="${{ github.event.pull_request.base.sha }}"
+            else
+              base_ref="${{ github.event.before }}"
+            fi
+
+            if [[ -z "$base_ref" || "$base_ref" == "0000000000000000000000000000000000000000" ]]; then
+              base_ref="HEAD~1"
+            fi
+
+            changed_files=$(git diff --name-only "$base_ref" HEAD)
+
+            if echo "$changed_files" | grep -q '^lab/apps/backend-a/'; then
+              services+=("backend-a")
+            fi
+
+            if echo "$changed_files" | grep -q '^lab/apps/backend-b/'; then
+              services+=("backend-b")
+            fi
+
+            if echo "$changed_files" | grep -q '^lab/apps/frontend/'; then
+              services+=("frontend")
+            fi
+          fi
+
+          if [[ ${#services[@]} -eq 0 ]]; then
+            echo 'has_changes=false' >> "$GITHUB_OUTPUT"
+            echo 'services=' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          services_csv=$(IFS=,; echo "${services[*]}")
+
+          echo 'has_changes=true' >> "$GITHUB_OUTPUT"
+          echo "services=$services_csv" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Amazon ECR
+        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build changed images
+        if: steps.collect.outputs.has_changes == 'true'
+        env:
+          SERVICES_CSV: ${{ steps.collect.outputs.services }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -r -a services <<< "$SERVICES_CSV"
+
+          for service in "${services[@]}"; do
+            if [[ -z "$service" ]]; then
+              continue
+            fi
+
+            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+              docker buildx build \
+                --platform linux/amd64 \
+                --load \
+                --tag "local/$service:${GITHUB_SHA}" \
+                "lab/apps/$service"
+            else
+              docker buildx build \
+                --platform linux/amd64 \
+                --push \
+                --tag "${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY_PREFIX}/$service:${GITHUB_SHA}" \
+                --tag "${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY_PREFIX}/$service:latest" \
+                "lab/apps/$service"
+            fi
+          done
+
+      - name: Update Helm chart image references
+        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          SERVICES_CSV: ${{ steps.collect.outputs.services }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import os
+          from pathlib import Path
+
+          service_mapping = {
+              "backend-a": "backendA",
+              "backend-b": "backendB",
+              "frontend": "frontend",
+          }
+          changed_services = {service for service in os.environ["SERVICES_CSV"].split(",") if service}
+          registry = os.environ["ECR_REGISTRY"]
+          prefix = os.environ["ECR_REPOSITORY_PREFIX"]
+          tag = os.environ["IMAGE_TAG"]
+          path = Path("lab/k8s/base/values.yaml")
+          lines = path.read_text().splitlines()
+          current_service = None
+          current_image_section = False
+          reverse_mapping = {value: key for key, value in service_mapping.items()}
+          updated = []
+
+          for line in lines:
+              stripped = line.strip()
+
+              if not line.startswith(" ") and stripped.endswith(":"):
+                  section = stripped[:-1]
+                  current_service = section if section in reverse_mapping else None
+                  current_image_section = False
+              elif current_service and line.startswith("  image:"):
+                  current_image_section = True
+              elif current_service and current_image_section and line.startswith("  ") and not line.startswith("    "):
+                  current_image_section = False
+
+              service_name = reverse_mapping.get(current_service)
+              if service_name in changed_services and current_image_section and stripped.startswith("repository:"):
+                  updated.append(f"    repository: {registry}/{prefix}/{service_name}")
+              elif service_name in changed_services and current_image_section and stripped.startswith("tag:"):
+                  updated.append(f"    tag: {tag}")
+              else:
+                  updated.append(line)
+
+          path.write_text("\n".join(updated) + "\n")
+          PY
+
+      - name: Commit chart updates
+        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lab/k8s/base/values.yaml
+          git commit -m "chore: release lab images ${GITHUB_SHA::12}"
+          git push
