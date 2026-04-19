@@ -53,7 +53,17 @@ jobs:
               base_ref="HEAD~1"
             fi
 
-            changed_files=$(git diff --name-only "$base_ref" HEAD)
+            if git rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null; then
+              changed_files=$(git diff --name-only "$base_ref" HEAD)
+            else
+              echo "::warning::Base ref '$base_ref' not found locally. Falling back to previous commit or full tree."
+              if git rev-parse --verify --quiet "HEAD~1^{commit}" >/dev/null; then
+                changed_files=$(git diff --name-only HEAD~1 HEAD)
+              else
+                # First commit in branch: treat tracked files in HEAD as changed.
+                changed_files=$(git ls-tree -r --name-only HEAD)
+              fi
+            fi
 
             if echo "$changed_files" | grep -q '^lab/apps/backend-orders/'; then
               services+=("backend-orders")
@@ -78,16 +88,6 @@ jobs:
 
           echo 'has_changes=true' >> "$GITHUB_OUTPUT"
           echo "services=$services_csv" >> "$GITHUB_OUTPUT"
-
-      - name: Validate AWS role secret
-        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}" ]]; then
-            echo "::error::Missing required variable AWS_GITHUB_ACTIONS_ROLE_ARN"
-            exit 1
-          fi
 
       - name: Configure AWS credentials
         if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
