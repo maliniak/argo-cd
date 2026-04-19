@@ -76,6 +76,7 @@ jobs:
             if echo "$changed_files" | grep -q '^lab/apps/frontend/'; then
               services+=("frontend")
             fi
+          fi
 
           if [[ ${#services[@]} -eq 0 ]]; then
             echo 'has_changes=false' >> "$GITHUB_OUTPUT"
