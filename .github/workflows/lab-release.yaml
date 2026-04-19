@@ -1,12 +1,6 @@
 name: lab-release
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - lab/apps/**
-      - .github/workflows/lab-release.yaml
   push:
     branches:
       - main
@@ -14,6 +8,15 @@ on:
       - lab/apps/**
       - .github/workflows/lab-release.yaml
   workflow_dispatch:
+    inputs:
+      build_all_services:
+        description: 'Build all services regardless of changes'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 permissions:
   id-token: write
@@ -37,17 +40,14 @@ jobs:
         id: collect
         run: |
           set -euo pipefail
-
           services=()
 
-          if [[ "${{ github.event_name }}" == 'workflow_dispatch' ]]; then
+          # For workflow_dispatch with build_all_services=true, build everything
+          if [[ "${{ github.event_name }}" == 'workflow_dispatch' && "${{ github.event.inputs.build_all_services }}" == 'true' ]]; then
             services=("backend-orders" "backend-products" "frontend")
           else
-            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
-              base_ref="${{ github.event.pull_request.base.sha }}"
-            else
-              base_ref="${{ github.event.before }}"
-            fi
+            # For push events, detect changes
+            base_ref="${{ github.event.before }}"
 
             if [[ -z "$base_ref" || "$base_ref" == "0000000000000000000000000000000000000000" ]]; then
               base_ref="HEAD~1"
@@ -76,7 +76,6 @@ jobs:
             if echo "$changed_files" | grep -q '^lab/apps/frontend/'; then
               services+=("frontend")
             fi
-          fi
 
           if [[ ${#services[@]} -eq 0 ]]; then
             echo 'has_changes=false' >> "$GITHUB_OUTPUT"
@@ -90,7 +89,7 @@ jobs:
           echo "services=$services_csv" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials
-        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        if: steps.collect.outputs.has_changes == 'true'
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}
@@ -100,7 +99,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Amazon ECR
-        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        if: steps.collect.outputs.has_changes == 'true'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -117,24 +116,16 @@ jobs:
               continue
             fi
 
-            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
-              docker buildx build \
-                --platform linux/amd64 \
-                --load \
-                --tag "local/$service:${GITHUB_SHA}" \
-                "lab/apps/$service"
-            else
-              docker buildx build \
-                --platform linux/amd64 \
-                --push \
-                --tag "${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY_PREFIX}/$service:${GITHUB_SHA}" \
-                --tag "${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY_PREFIX}/$service:latest" \
-                "lab/apps/$service"
-            fi
+            docker buildx build \
+              --platform linux/amd64 \
+              --push \
+              --tag "${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY_PREFIX}/$service:${GITHUB_SHA}" \
+              --tag "${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY_PREFIX}/$service:latest" \
+              "lab/apps/$service"
           done
 
       - name: Update Helm chart image references
-        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        if: steps.collect.outputs.has_changes == 'true'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           SERVICES_CSV: ${{ steps.collect.outputs.services }}
@@ -186,7 +177,7 @@ jobs:
           PY
 
       - name: Commit chart updates
-        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        if: steps.collect.outputs.has_changes == 'true'
         run: |
           set -euo pipefail
 
