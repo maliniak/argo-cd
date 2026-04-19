@@ -2,7 +2,7 @@ backendOrders:
   replicaCount: 1
   image:
     repository: 437952802873.dkr.ecr.eu-central-1.amazonaws.com/gitops-lab/backend-orders
-    tag: c53dc66e4d499492c8509397d56cd635c17dd8e2
+    tag: c2bd5bfc6bf04a5a72b782493c755842d5bf5cba
     pullPolicy: Always
   service:
     port: 8000
@@ -18,7 +18,7 @@ backendProducts:
   replicaCount: 1
   image:
     repository: 437952802873.dkr.ecr.eu-central-1.amazonaws.com/gitops-lab/backend-products
-    tag: c53dc66e4d499492c8509397d56cd635c17dd8e2
+    tag: c2bd5bfc6bf04a5a72b782493c755842d5bf5cba
     pullPolicy: Always
   service:
     port: 8000
@@ -34,7 +34,7 @@ frontend:
   replicaCount: 1
   image:
     repository: 437952802873.dkr.ecr.eu-central-1.amazonaws.com/gitops-lab/frontend
-    tag: c53dc66e4d499492c8509397d56cd635c17dd8e2
+    tag: c2bd5bfc6bf04a5a72b782493c755842d5bf5cba
     pullPolicy: Always
   service:
     port: 80
