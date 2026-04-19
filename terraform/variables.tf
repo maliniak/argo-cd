@@ -96,7 +96,7 @@ variable "argocd_namespace" {
 variable "argocd_hostname" {
   description = "Hostname for Argo CD Ingress. Leave empty to skip hostname-based routing."
   type        = string
-  default     = ""
+  default     = "malinka-labs-argo.net"
 }
 
 variable "argocd_alb_scheme" {
