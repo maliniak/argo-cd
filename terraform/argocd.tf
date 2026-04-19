@@ -23,7 +23,7 @@ resource "helm_release" "argocd" {
   values = [
     yamlencode({
       global = {
-        domain = var.argocd_hostname != "" ? var.argocd_hostname : "argocd.example.com"
+        domain = var.argocd_hostname
       }
 
       configs = {
@@ -38,7 +38,7 @@ resource "helm_release" "argocd" {
           enabled          = true
           controller       = "aws"
           ingressClassName = "alb"
-          hostname         = var.argocd_hostname != "" ? var.argocd_hostname : null
+          hostname         = var.argocd_hostname
 
           annotations = merge(
             {
