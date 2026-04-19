@@ -54,3 +54,4 @@ ingress:
   scheme: internet-facing
   targetType: ip
   healthcheckPath: /health
+  host: ""
