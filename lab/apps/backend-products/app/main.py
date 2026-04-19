@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 
-app = FastAPI(title="backend-b", version="0.1.0")
+app = FastAPI(title="backend-products", version="0.1.0")
 
 PRODUCTS = {
     1: {"id": 1, "name": "Keyboard", "price": 100},
@@ -11,7 +11,7 @@ PRODUCTS = {
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "backend-b"}
+    return {"status": "ok", "service": "backend-products"}
 
 
 @app.get("/api/products/{product_id}")

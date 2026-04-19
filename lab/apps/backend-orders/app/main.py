@@ -3,9 +3,9 @@ import os
 import requests
 from fastapi import FastAPI, HTTPException
 
-app = FastAPI(title="backend-a", version="0.1.0")
+app = FastAPI(title="backend-orders", version="0.1.0")
 
-BACKEND_B_URL = os.getenv("BACKEND_B_URL", "http://backend-b.demo.svc.cluster.local:8000")
+BACKEND_PRODUCTS_URL = os.getenv("BACKEND_PRODUCTS_URL", "http://backend-products.demo.svc.cluster.local:8000")
 
 ORDERS = {
     101: {"order_id": 101, "product_id": 1, "quantity": 2},
@@ -15,7 +15,7 @@ ORDERS = {
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "backend-a"}
+    return {"status": "ok", "service": "backend-orders"}
 
 
 @app.get("/api/orders")
@@ -34,12 +34,12 @@ def get_order(order_id: int) -> dict[str, int | dict[str, int | str]]:
 
     try:
         product_response = requests.get(
-            f"{BACKEND_B_URL}/api/products/{order['product_id']}",
+            f"{BACKEND_PRODUCTS_URL}/api/products/{order['product_id']}",
             timeout=5,
         )
         product_response.raise_for_status()
     except requests.RequestException as error:
-        raise HTTPException(status_code=502, detail=f"backend-b request failed: {error}") from error
+        raise HTTPException(status_code=502, detail=f"backend-products request failed: {error}") from error
 
     return {
         "order_id": order["order_id"],

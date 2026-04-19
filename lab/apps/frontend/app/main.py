@@ -82,7 +82,7 @@ def home() -> str:
         <main>
           <h1>Argo CD GitOps Lab</h1>
           <p>
-            This frontend calls <strong>backend-a</strong>, which then calls <strong>backend-b</strong>.
+            This frontend calls <strong>backend-orders</strong>, which then calls <strong>backend-products</strong>.
             Change the app code or image tag in Git, let GitHub Actions update the manifests, and let Argo CD roll out the change.
           </p>
           <div class=\"controls\">

@@ -17,9 +17,9 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: backend-a
+                name: backend-orders
                 port:
-                  number: {{ .Values.backendA.service.port }}
+                  number: {{ .Values.backendOrders.service.port }}
           - path: /
             pathType: Prefix
             backend:

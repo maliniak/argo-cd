@@ -2,9 +2,9 @@
 
 This lab adds three small services to the repository so you can practice the full GitOps loop on your EKS Fargate cluster:
 
-- `backend-b`: inventory API
-- `backend-a`: orders API that calls `backend-b`
-- `frontend`: simple UI exposed through an ALB Ingress and calling `backend-a` on `/api`
+- `backend-products`: inventory API
+- `backend-orders`: orders API that calls `backend-products`
+- `frontend`: simple UI exposed through an ALB Ingress and calling `backend-orders` on `/api`
 
 The deployment flow is:
 
@@ -19,8 +19,8 @@ The deployment flow is:
 ```text
 lab/
   apps/
-    backend-a/
-    backend-b/
+    backend-orders/
+    backend-products/
     frontend/
   k8s/
     base/
@@ -89,8 +89,8 @@ Create a policy similar to this, scoped to the three lab repositories:
         "ecr:UploadLayerPart"
       ],
       "Resource": [
-        "arn:aws:ecr:eu-central-1:<account-id>:repository/gitops-lab/backend-a",
-        "arn:aws:ecr:eu-central-1:<account-id>:repository/gitops-lab/backend-b",
+        "arn:aws:ecr:eu-central-1:<account-id>:repository/gitops-lab/backend-orders",
+        "arn:aws:ecr:eu-central-1:<account-id>:repository/gitops-lab/backend-products",
         "arn:aws:ecr:eu-central-1:<account-id>:repository/gitops-lab/frontend"
       ]
     }
@@ -192,14 +192,14 @@ kubectl -n demo get ingress frontend
 
 Open the address shown in `STATUS.loadBalancer.ingress[0].hostname`.
 
-The browser calls the frontend, the frontend calls `/api/orders/<id>`, `backend-a` calls `backend-b`, and the JSON response comes back through the chain.
+The browser calls the frontend, the frontend calls `/api/orders/<id>`, `backend-orders` calls `backend-products`, and the JSON response comes back through the chain.
 
 ## 7. Practice the GitOps flow
 
 Good first exercises:
 
-1. Change product prices in [lab/apps/backend-b/app/main.py](/Users/mmalinow/Documents/ideaProjects/mentoring/eks-fargate/lab/apps/backend-b/app/main.py).
-2. Change the order list in [lab/apps/backend-a/app/main.py](/Users/mmalinow/Documents/ideaProjects/mentoring/eks-fargate/lab/apps/backend-a/app/main.py).
+1. Change product prices in [lab/apps/backend-products/app/main.py](/Users/mmalinow/Documents/ideaProjects/mentoring/eks-fargate/lab/apps/backend-products/app/main.py).
+2. Change the order list in [lab/apps/backend-orders/app/main.py](/Users/mmalinow/Documents/ideaProjects/mentoring/eks-fargate/lab/apps/backend-orders/app/main.py).
 3. Change the frontend styling in [lab/apps/frontend/app/main.py](/Users/mmalinow/Documents/ideaProjects/mentoring/eks-fargate/lab/apps/frontend/app/main.py).
 
 For each change:

@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -41,7 +41,7 @@ jobs:
           services=()
 
           if [[ "${{ github.event_name }}" == 'workflow_dispatch' ]]; then
-            services=("backend-a" "backend-b" "frontend")
+            services=("backend-orders" "backend-products" "frontend")
           else
             if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
               base_ref="${{ github.event.pull_request.base.sha }}"
@@ -55,12 +55,12 @@ jobs:
 
             changed_files=$(git diff --name-only "$base_ref" HEAD)
 
-            if echo "$changed_files" | grep -q '^lab/apps/backend-a/'; then
-              services+=("backend-a")
+            if echo "$changed_files" | grep -q '^lab/apps/backend-orders/'; then
+              services+=("backend-orders")
             fi
 
-            if echo "$changed_files" | grep -q '^lab/apps/backend-b/'; then
-              services+=("backend-b")
+            if echo "$changed_files" | grep -q '^lab/apps/backend-products/'; then
+              services+=("backend-products")
             fi
 
             if echo "$changed_files" | grep -q '^lab/apps/frontend/'; then
@@ -79,11 +79,21 @@ jobs:
           echo 'has_changes=true' >> "$GITHUB_OUTPUT"
           echo "services=$services_csv" >> "$GITHUB_OUTPUT"
 
+      - name: Validate AWS role secret
+        if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}" ]]; then
+            echo "::error::Missing required variable AWS_GITHUB_ACTIONS_ROLE_ARN"
+            exit 1
+          fi
+
       - name: Configure AWS credentials
         if: steps.collect.outputs.has_changes == 'true' && github.event_name != 'pull_request'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Set up Docker Buildx
@@ -137,8 +147,8 @@ jobs:
           from pathlib import Path
 
           service_mapping = {
-              "backend-a": "backendA",
-              "backend-b": "backendB",
+              "backend-orders": "backendOrders",
+              "backend-products": "backendProducts",
               "frontend": "frontend",
           }
           changed_services = {service for service in os.environ["SERVICES_CSV"].split(",") if service}

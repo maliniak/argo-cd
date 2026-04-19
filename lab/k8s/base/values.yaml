@@ -1,7 +1,7 @@
-backendA:
+backendOrders:
   replicaCount: 1
   image:
-    repository: backend-a
+    repository: backend-orders
     tag: 0.1.0
     pullPolicy: Always
   service:
@@ -14,10 +14,10 @@ backendA:
       cpu: 500m
       memory: 512Mi
 
-backendB:
+backendProducts:
   replicaCount: 1
   image:
-    repository: backend-b
+    repository: backend-products
     tag: 0.1.0
     pullPolicy: Always
   service:
