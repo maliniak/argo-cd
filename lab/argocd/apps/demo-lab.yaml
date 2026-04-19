@@ -6,7 +6,7 @@ metadata:
 spec:
   project: demo-project
   source:
-    repoURL: https://github.com/your-org/eks-fargate.git
+    repoURL: https://github.com/maliniak/eks-fargate.git
     targetRevision: main
     path: lab/k8s/base
     helm:
