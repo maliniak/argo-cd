@@ -55,7 +55,7 @@ resource "helm_release" "argocd" {
 
           aws = {
             serviceType            = "ClusterIP"
-            backendProtocolVersion = "GRPC"
+            backendProtocolVersion = "HTTP1"
           }
         }
       }

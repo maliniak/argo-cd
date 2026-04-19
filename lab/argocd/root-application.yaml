@@ -6,7 +6,7 @@ metadata:
 spec:
   project: demo-project
   source:
-    repoURL: https://github.com/maliniak/eks-fargate.git
+    repoURL: https://github.com/maliniak/argo-cd.git
     targetRevision: main
     path: lab/argocd/apps
   destination:
