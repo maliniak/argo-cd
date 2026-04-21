@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-lab-prod
+  namespace: argocd
+spec:
+  project: demo-project
+  source:
+    repoURL: https://github.com/maliniak/lab.git
+    targetRevision: main
+    path: k8s/base
+    helm:
+      releaseName: demo-lab-prod
+      valueFiles:
+        - values-prod.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

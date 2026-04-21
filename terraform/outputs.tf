@@ -28,9 +28,9 @@ output "private_subnet_ids" {
   value       = module.vpc.private_subnets
 }
 
-output "gitops_lab_namespace" {
-  description = "Namespace targeted by the sample Argo CD GitOps lab."
-  value       = var.gitops_lab_namespace
+output "gitops_lab_namespaces" {
+  description = "Namespaces targeted by the sample Argo CD GitOps lab."
+  value       = var.gitops_lab_namespaces
 }
 
 output "gitops_lab_ecr_repository_urls" {

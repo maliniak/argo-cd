@@ -7,7 +7,7 @@ locals {
 
   azs = slice(data.aws_availability_zones.available.names, 0, var.az_count)
 
-  gitops_lab_namespaces = distinct(concat(var.fargate_namespaces, [var.gitops_lab_namespace]))
+  gitops_lab_namespaces = distinct(concat(var.fargate_namespaces, var.gitops_lab_namespaces))
 
   gitops_lab_ecr_repositories = {
     backend-orders   = "${var.gitops_lab_ecr_repository_prefix}/backend-orders"
