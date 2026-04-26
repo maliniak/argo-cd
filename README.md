@@ -1,91 +1,122 @@
-# EKS Fargate Terraform Bootstrap
+# EKS Fargate And Argo CD Bootstrap
 
-This repository bootstraps a new AWS account with:
+This repository owns the shared platform layer:
 
-- Dedicated VPC (public + private subnets across multiple AZs)
-- EKS cluster using the `terraform-aws-modules/eks/aws` module
-- Fargate profiles for selected namespaces
-- IRSA enabled for IAM Roles for Service Accounts
-- Managed EKS add-ons (`coredns`, `kube-proxy`, `vpc-cni`)
-- AWS Load Balancer Controller installed via Helm (ALB/NLB ingress support)
-- Argo CD installed via Helm in the `argocd` namespace
+- VPC, subnets, NAT, and EKS control plane
+- Fargate profiles for platform and application namespaces
+- AWS Load Balancer Controller
+- Argo CD installation and bootstrap manifests
+- ECR repositories for the sample lab applications
 
-## Add-ons To Use
+Application source code and Helm chart now live in the separate `lab` repository:
 
-For this Fargate-first EKS setup, use the following:
+- `https://github.com/maliniak/lab.git`
 
-- `vpc-cni` (required): Pod networking
-- `kube-proxy` (required): Cluster service networking
-- `coredns` (required): DNS for workloads; configured to run on Fargate
-- `aws-load-balancer-controller` (recommended): Creates and manages ALB/NLB from Kubernetes Ingress/Service
-- `argocd` (recommended): GitOps controller for cluster and application delivery
+## Repository Layout
 
-Optional add-ons you can add later:
+```text
+argo-cd/
+  argocd/
+    project.yaml
+    root-application.yaml
+    apps/
+      demo-lab-dev.yaml
+      demo-lab-prod.yaml
+  terraform/
+```
 
-- `metrics-server`: Metrics for HPA and observability
-- `external-dns`: Route53 DNS record automation
-- `cert-manager`: TLS certificate management
+## What Gets Created
+
+Terraform in [terraform](terraform) creates:
+
+- a VPC with public and private subnets
+- an EKS cluster on Fargate
+- Fargate coverage for `kube-system`, `argocd`, `demo-dev`, and `demo-prod`
+- ECR repositories under the `gitops-lab` prefix
+- AWS Load Balancer Controller
+- Argo CD with ALB ingress
+
+Argo CD bootstrap manifests in [argocd](argocd) create:
+
+- one root application: [argocd/root-application.yaml](argocd/root-application.yaml)
+- two child applications:
+  - [argocd/apps/demo-lab-dev.yaml](argocd/apps/demo-lab-dev.yaml)
+  - [argocd/apps/demo-lab-prod.yaml](argocd/apps/demo-lab-prod.yaml)
+
+Both child applications deploy the Helm chart from the separate `lab` repository.
 
 ## Prerequisites
 
-- Terraform >= 1.6
+- Terraform `>= 1.6`
 - AWS credentials for the target account
-- Optional: AWS CLI for kubeconfig setup
+- AWS CLI for kubeconfig and verification
+- `kubectl`
 
 ## Quick Start
 
-1. Initialize:
+1. Initialize Terraform:
 
-   ```bash
-   cd terraform
-   terraform init
-   ```
+```bash
+cd terraform
+terraform init
+```
 
-2. Create your vars file:
+2. Create and review variables:
 
-   ```bash
-   cd terraform
-   cp terraform.tfvars.example terraform.tfvars
-   ```
+```bash
+cp terraform.tfvars.example terraform.tfvars
+```
 
-3. Review and adjust values in `terraform.tfvars`.
+3. Apply infrastructure:
 
-4. Plan and apply:
+```bash
+terraform apply
+```
 
-   ```bash
-   cd terraform
-   terraform plan
-   terraform apply
-   ```
+4. Configure local kubeconfig:
 
-5. Configure kubectl (after apply):
+```bash
+aws eks update-kubeconfig --region eu-central-1 --name <environment>-<cluster_name>
+```
 
-   ```bash
-   aws eks update-kubeconfig --region <region> --name <environment>-<cluster_name>
-   ```
+5. Apply Argo CD bootstrap manifests:
 
-## Notes For New Account Onboarding
+```bash
+kubectl apply -f argocd/project.yaml
+kubectl apply -f argocd/root-application.yaml
+```
 
-- Keep `single_nat_gateway = true` initially to reduce cost in sandbox/new accounts.
-- Tag strategy is centralized in `var.tags` and `locals.common_tags`.
-- `kubernetes_version` is pinned in variables for predictable rollouts. Set it to the latest supported EKS version in your region before apply.
-- Fargate runs only workloads matching `fargate_namespaces`; add namespaces as needed.
-- The sample GitOps lab uses the `demo` namespace and ECR repositories under the `gitops-lab` prefix.
+## Multi-Environment Model
 
-## Argo CD Lab
+This setup runs both environments in one cluster:
 
-The repository now includes a starter GitOps lab under `lab/`:
+- `demo-dev`: automatic development deployments
+- `demo-prod`: explicit promotion deployments
 
-- `lab/apps/`: three small Python services
-- `lab/k8s/base/`: kustomize manifests for the demo namespace
-- `lab/argocd/`: AppProject and Application definitions
-- `.github/workflows/lab-build-and-release.yaml`: build, push, and manifest-bump workflow for ECR
+The AppProject allows these destinations in [argocd/project.yaml](argocd/project.yaml).
 
-See `lab/README.md` for the end-to-end setup and the AWS GitHub Actions integration steps.
+## GitOps Wiring
 
-## Cleanup
+- Root Argo application reads this repository from `argocd/apps`
+- Child Argo applications read the app chart from `https://github.com/maliniak/lab.git`
+- Dev uses `values-dev.yaml`
+- Prod uses `values-prod.yaml`
+
+## Operational Notes
+
+- If the `lab` repository is private, Argo CD needs repository credentials.
+- If you use Route53 hostnames, create DNS records for both environments and Argo CD.
+- If you use HTTPS, attach an ACM certificate for the ALB ingress.
+
+## Destroy
+
+Delete ingress resources first so ALBs and ENIs are cleaned up before cluster deletion.
+
+Then run:
 
 ```bash
 cd terraform
 terraform destroy
 ```
+
+If Terraform blocks on the state bucket or lock table, that is expected when `prevent_destroy` is enabled.

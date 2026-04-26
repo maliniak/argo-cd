@@ -7,7 +7,9 @@ spec:
   sourceRepos:
     - '*'
   destinations:
-    - namespace: demo
+    - namespace: demo-dev
+      server: https://kubernetes.default.svc
+    - namespace: demo-prod
       server: https://kubernetes.default.svc
     - namespace: argocd
       server: https://kubernetes.default.svc
