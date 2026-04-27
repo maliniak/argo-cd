@@ -87,6 +87,12 @@ variable "enable_argocd" {
   default     = true
 }
 
+variable "enable_argocd_ingress" {
+  description = "Whether to expose Argo CD through an ALB ingress. Disable when using port-forward only."
+  type        = bool
+  default     = false
+}
+
 variable "argocd_namespace" {
   description = "Namespace where Argo CD is installed."
   type        = string
@@ -96,7 +102,7 @@ variable "argocd_namespace" {
 variable "argocd_hostname" {
   description = "Hostname for Argo CD Ingress. Leave empty to skip hostname-based routing."
   type        = string
-  default     = "malinka-labs-argo.net"
+  default     = ""
 }
 
 variable "argocd_alb_scheme" {
