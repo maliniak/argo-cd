@@ -76,7 +76,7 @@ terraform apply
 4. Configure local kubeconfig:
 
 ```bash
-aws eks update-kubeconfig --region eu-central-1 --name <environment>-<cluster_name>
+aws eks update-kubeconfig --region eu-central-1 --name dev-eks-fargate
 ```
 
 5. Apply Argo CD bootstrap manifests:
@@ -110,13 +110,79 @@ The AppProject allows these destinations in [argocd/project.yaml](argocd/project
 
 ## Destroy
 
-Delete ingress resources first so ALBs and ENIs are cleaned up before cluster deletion.
+### Preserve ECR and state backend
 
-Then run:
+ECR repositories and the Terraform state backend (S3 + DynamoDB) should survive a teardown so images and state are not lost.
+
+Remove them from Terraform state before destroying:
 
 ```bash
 cd terraform
+
+terraform state rm \
+  'aws_ecr_repository.gitops_lab["backend-orders"]' \
+  'aws_ecr_repository.gitops_lab["backend-products"]' \
+  'aws_ecr_repository.gitops_lab["frontend"]' \
+  'aws_ecr_lifecycle_policy.gitops_lab["backend-orders"]' \
+  'aws_ecr_lifecycle_policy.gitops_lab["backend-products"]' \
+  'aws_ecr_lifecycle_policy.gitops_lab["frontend"]' \
+  'aws_s3_bucket.tfstate' \
+  'aws_s3_bucket_public_access_block.tfstate' \
+  'aws_s3_bucket_server_side_encryption_configuration.tfstate' \
+  'aws_s3_bucket_versioning.tfstate' \
+  'aws_dynamodb_table.tfstate_lock'
+```
+
+### Clean up ALBs first
+
+The AWS Load Balancer Controller creates ALBs from Kubernetes Ingress objects. These must be deleted before the cluster is destroyed, otherwise the VPC deletion will fail due to lingering ENIs.
+
+1. Delete all Argo CD applications so the controller cannot re-create ingresses:
+
+```bash
+kubectl -n argocd delete application demo-lab-dev demo-lab-prod demo-root --wait=false
+```
+
+2. Delete the ingress objects in each namespace:
+
+```bash
+kubectl -n demo-dev delete ingress frontend
+kubectl -n demo-prod delete ingress frontend 2>/dev/null || true
+```
+
+3. Wait ~30 seconds and verify the ALB is gone:
+
+```bash
+aws elbv2 describe-load-balancers --region eu-central-1 \
+  --query 'LoadBalancers[?contains(LoadBalancerName, `k8s-demo`)].{Name:LoadBalancerName,State:State.Code}' \
+  --output table
+```
+
+The command should return an empty table before proceeding.
+
+### Destroy the cluster
+
+```bash
 terraform destroy
 ```
 
-If Terraform blocks on the state bucket or lock table, that is expected when `prevent_destroy` is enabled.
+This removes the VPC, EKS cluster, Fargate profiles, ArgoCD, Load Balancer Controller, KMS key, and all supporting IAM resources.
+
+### Re-import preserved resources after a fresh apply
+
+When you recreate the cluster, the existing `imports.tf` already re-adopts S3 and DynamoDB. To also re-adopt ECR, add import blocks to `imports.tf` before running `terraform apply`:
+
+```hcl
+import {
+  to = aws_ecr_repository.gitops_lab["backend-orders"]
+  id = "gitops-lab/backend-orders"
+}
+import {
+  to = aws_ecr_repository.gitops_lab["backend-products"]
+  id = "gitops-lab/backend-products"
+}
+import {
+  to = aws_ecr_repository.gitops_lab["frontend"]
+  id = "gitops-lab/frontend"
+}
+```
