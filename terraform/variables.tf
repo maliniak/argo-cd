@@ -54,7 +54,7 @@ variable "fargate_namespaces" {
 variable "gitops_lab_namespaces" {
   description = "Namespaces reserved for the Argo CD GitOps lab workloads (for example: dev and prod)."
   type        = list(string)
-  default     = ["demo-dev", "demo-prod"]
+  default     = ["demo-dev", "demo-stage", "demo-prod"]
 }
 
 variable "enable_gitops_lab_ecr_repositories" {

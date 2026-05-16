@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: demo-lab-dev
+  name: demo-lab-stage
   namespace: argocd
 spec:
   project: demo-project
@@ -10,15 +10,12 @@ spec:
     targetRevision: main
     path: k8s/base
     helm:
-      releaseName: demo-lab-dev
+      releaseName: demo-lab-stage
       valueFiles:
-        - values-dev.yaml
+        - values-stage.yaml
   destination:
     server: https://kubernetes.default.svc
-    namespace: demo-dev
+    namespace: demo-stage
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true
